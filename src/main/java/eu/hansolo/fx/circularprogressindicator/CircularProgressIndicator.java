@@ -16,19 +16,26 @@
 package eu.hansolo.fx.circularprogressindicator;
 
 import javafx.animation.Animation;
-import javafx.animation.FadeTransition;
 import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.RotateTransition;
 import javafx.animation.Timeline;
 import javafx.beans.InvalidationListener;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.BooleanPropertyBase;
 import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.DoublePropertyBase;
+import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.SimpleDoubleProperty;
+import javafx.scene.Node;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
+import javafx.scene.shape.Arc;
 import javafx.scene.shape.Circle;
+import javafx.scene.shape.StrokeLineCap;
 import javafx.util.Duration;
 
 
@@ -45,27 +52,60 @@ public class CircularProgressIndicator extends Region {
     private              DoubleProperty       dashOffset       = new SimpleDoubleProperty(0);
     private              DoubleProperty       dashArray_0      = new SimpleDoubleProperty(1);
     private              double               size;
-    private              Pane                 pane;
+    private              StackPane            indeterminatePane;
+    private              Pane                 progressPane;
     private              Circle               circle;
+    private              Arc                  arc;
     private              Timeline             timeline;
-    private              RotateTransition     paneRotation;
+    private              RotateTransition     indeterminatePaneRotation;
     private              InvalidationListener listener;
-    private              FadeTransition       fade;
+    private              DoubleProperty       progress;
+    private              BooleanProperty      indeterminate;
+    private              BooleanProperty      roundLineCap;
     private              boolean              isRunning;
+
 
 
     // ******************** Constructors **************************************
     public CircularProgressIndicator() {
         getStylesheets().add(CircularProgressIndicator.class.getResource("circular-progress-indicator.css").toExternalForm());
         getStyleClass().add("circular-progress");
-        isRunning = false;
-        timeline  = new Timeline();
-        fade      = new FadeTransition(Duration.millis(500), this);
-        listener  = observable -> {
+        progress      = new DoublePropertyBase(0) {
+            @Override public void invalidated() {
+                if (get() < 0) {
+                    startIndeterminate();
+                } else {
+                    stopIndeterminate();
+                    set(clamp(0d,1d, get()));
+                    redraw();
+                }
+            }
+            @Override public Object getBean() { return CircularProgressIndicator.this;}
+            @Override public String getName() { return "progress"; }
+        };
+        indeterminate = new BooleanPropertyBase(false) {
+            @Override public Object getBean() { return CircularProgressIndicator.this; }
+            @Override public String getName() { return "indeterminate"; }
+        };
+        roundLineCap  = new BooleanPropertyBase(true) {
+            @Override public void invalidated() {
+                if (get()) {
+                    circle.setStrokeLineCap(StrokeLineCap.ROUND);
+                    arc.setStrokeLineCap(StrokeLineCap.ROUND);
+                } else {
+                    circle.setStrokeLineCap(StrokeLineCap.SQUARE);
+                    arc.setStrokeLineCap(StrokeLineCap.SQUARE);
+                }
+            }
+            @Override public Object getBean() { return CircularProgressIndicator.this; }
+            @Override public String getName() { return "roundLineCap"; }
+        };
+        isRunning     = false;
+        timeline      = new Timeline();
+        listener      = observable -> {
             circle.setStrokeDashOffset(dashOffset.get());
             circle.getStrokeDashArray().setAll(dashArray_0.getValue(), 200d);
         };
-
         init();
         initGraphics();
         registerListeners();
@@ -93,17 +133,24 @@ public class CircularProgressIndicator extends Region {
     }
 
     private void initGraphics() {
+        double center = PREFERRED_WIDTH * 0.5;
+        double radius = PREFERRED_WIDTH * 0.45;
         circle = new Circle();
-        circle.setCenterX(PREFERRED_WIDTH * 0.5);
-        circle.setCenterY(PREFERRED_WIDTH * 0.5);
-        circle.setRadius(PREFERRED_WIDTH * 0.45);
+        circle.setCenterX(center);
+        circle.setCenterY(center);
+        circle.setRadius(radius);
         circle.getStyleClass().add("indicator");
         circle.setStrokeWidth(PREFERRED_WIDTH * 0.1);
         circle.setStrokeDashOffset(dashOffset.get());
         circle.getStrokeDashArray().setAll(dashArray_0.getValue(), 200d);
 
-        pane = new StackPane(circle);
-        getChildren().setAll(pane);
+        arc = new Arc(center, center, radius, radius, 90, 360);
+        arc.setStrokeWidth(PREFERRED_WIDTH * 0.1);
+        arc.getStyleClass().add("indicator");
+
+        indeterminatePane = new StackPane(circle);
+        progressPane      = new Pane(arc);
+        getChildren().setAll(progressPane, indeterminatePane);
 
         // Setup timeline animation
         KeyValue kvDashOffset_0    = new KeyValue(dashOffset, 0, Interpolator.EASE_BOTH);
@@ -125,45 +172,70 @@ public class CircularProgressIndicator extends Region {
         timeline.getKeyFrames().setAll(kf0, kf1, kf2);
 
         // Setup additional pane rotation
-        paneRotation = new RotateTransition();
-        paneRotation.setNode(pane);
-        paneRotation.setFromAngle(0);
-        paneRotation.setToAngle(-360);
-        paneRotation.setInterpolator(Interpolator.LINEAR);
-        paneRotation.setCycleCount(Timeline.INDEFINITE);
-        paneRotation.setDuration(new Duration(4500));
-
-        setOpacity(0);
+        indeterminatePaneRotation = new RotateTransition();
+        indeterminatePaneRotation.setNode(indeterminatePane);
+        indeterminatePaneRotation.setFromAngle(0);
+        indeterminatePaneRotation.setToAngle(-360);
+        indeterminatePaneRotation.setInterpolator(Interpolator.LINEAR);
+        indeterminatePaneRotation.setCycleCount(Timeline.INDEFINITE);
+        indeterminatePaneRotation.setDuration(new Duration(4500));
     }
 
     private void registerListeners() {
         widthProperty().addListener(o -> resize());
         heightProperty().addListener(o -> resize());
+        progress.addListener(o -> redraw());
         dashOffset.addListener(listener);
     }
 
 
     // ******************** Methods *******************************************
-    public void start() {
+    public double getProgress() { return progress.get(); }
+    public void setProgress(final double PROGRESS) { progress.set(PROGRESS); }
+    public DoubleProperty progressProperty() { return progress; }
+
+    private void startIndeterminate() {
         if (isRunning) return;
-        fade.setFromValue(0);
-        fade.setToValue(1);
-        fade.play();
+        manageNode(indeterminatePane, true);
+        manageNode(progressPane, false);
         timeline.play();
-        paneRotation.play();
+        indeterminatePaneRotation.play();
         isRunning = true;
+        indeterminate.set(true);
     }
-    public void stop() {
+    private void stopIndeterminate() {
         if (!isRunning) return;
-        fade.setFromValue(1);
-        fade.setToValue(0);
-        fade.play();
         timeline.stop();
-        paneRotation.stop();
+        indeterminatePaneRotation.stop();
+        indeterminatePane.setRotate(0);
+        manageNode(progressPane, true);
+        manageNode(indeterminatePane, false);
         isRunning = false;
+        indeterminate.set(false);
     }
 
-    public boolean isRunning() { return isRunning; }
+    public boolean isIndeterminate() { return Double.compare(ProgressIndicator.INDETERMINATE_PROGRESS, getProgress()) == 0; }
+    public ReadOnlyBooleanProperty indeterminateProperty() { return indeterminate; }
+
+    public boolean isRoundLineCap() { return roundLineCap.get(); }
+    public void setRoundLineCap(final boolean BOOLEAN) { roundLineCap.set(BOOLEAN); }
+    public BooleanProperty roundLineCapProperty() { return roundLineCap; }
+
+    private static final <T extends Number> T clamp(final T MIN, final T MAX, final T VALUE) {
+        if (VALUE.doubleValue() < MIN.doubleValue()) return MIN;
+        if (VALUE.doubleValue() > MAX.doubleValue()) return MAX;
+        return VALUE;
+    }
+
+    private void manageNode(final Node NODE, final boolean MANAGED) {
+        if (MANAGED) {
+            NODE.setManaged(true);
+            NODE.setVisible(true);
+        } else {
+            NODE.setVisible(false);
+            NODE.setManaged(false);
+        }
+    }
 
 
     // ******************** Resizing ******************************************
@@ -173,13 +245,30 @@ public class CircularProgressIndicator extends Region {
         size = width < height ? width : height;
 
         if (width > 0 && height > 0) {
-            pane.setMaxSize(size, size);
-            pane.setPrefSize(size, size);
-            pane.relocate((getWidth() - size) * 0.5, (getHeight() - size) * 0.5);
+            indeterminatePane.setMaxSize(size, size);
+            indeterminatePane.setPrefSize(size, size);
+            indeterminatePane.relocate((getWidth() - size) * 0.5, (getHeight() - size) * 0.5);
+
+            progressPane.setMaxSize(size, size);
+            progressPane.setPrefSize(size, size);
+            progressPane.relocate((getWidth() - size) * 0.5, (getHeight() - size) * 0.5);
+
+            double center = size * 0.5;
+            double radius = size * 0.45;
+
+            arc.setCenterX(center);
+            arc.setCenterY(center);
+            arc.setRadiusX(radius);
+            arc.setRadiusY(radius);
+            arc.setStrokeWidth(size * 0.1);
 
             double factor = size / 24;
             circle.setScaleX(factor);
             circle.setScaleY(factor);
         }
+    }
+
+    private void redraw() {
+        arc.setLength(-360.0 * getProgress());
     }
 }
