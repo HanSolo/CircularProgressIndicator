@@ -18,6 +18,7 @@ package eu.hansolo.fx.circularprogressindicator;
 
 import javafx.application.Application;
 import javafx.scene.Scene;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
@@ -41,7 +42,7 @@ public class Demo extends Application {
         stage.setScene(scene);
         stage.show();
 
-        indicator.start();
+        indicator.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
     }
 
     @Override public void stop() {
