@@ -19,7 +19,6 @@
 }
 .circular-progress .indicator {
     -fx-stroke-type    : centered;
-    -fx-stroke-line-cap: round;
     -fx-fill           : null;
     -fx-stroke         : -indicator-color;
 }

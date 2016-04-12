@@ -87,7 +87,7 @@ public class CircularProgressIndicator extends Region {
             @Override public Object getBean() { return CircularProgressIndicator.this; }
             @Override public String getName() { return "indeterminate"; }
         };
-        roundLineCap  = new BooleanPropertyBase(true) {
+        roundLineCap  = new BooleanPropertyBase(false) {
             @Override public void invalidated() {
                 if (get()) {
                     circle.setStrokeLineCap(StrokeLineCap.ROUND);
@@ -140,13 +140,17 @@ public class CircularProgressIndicator extends Region {
         circle.setCenterY(center);
         circle.setRadius(radius);
         circle.getStyleClass().add("indicator");
-        circle.setStrokeWidth(PREFERRED_WIDTH * 0.1);
+        circle.setStrokeLineCap(isRoundLineCap() ? StrokeLineCap.ROUND : StrokeLineCap.SQUARE);
+        circle.setStrokeWidth(PREFERRED_WIDTH * 0.10526316);
         circle.setStrokeDashOffset(dashOffset.get());
         circle.getStrokeDashArray().setAll(dashArray_0.getValue(), 200d);
 
         arc = new Arc(center, center, radius, radius, 90, 360);
+        arc.setStrokeLineCap(isRoundLineCap() ? StrokeLineCap.ROUND : StrokeLineCap.SQUARE);
         arc.setStrokeWidth(PREFERRED_WIDTH * 0.1);
         arc.getStyleClass().add("indicator");
+
+        System.out.println(isRoundLineCap());
 
         indeterminatePane = new StackPane(circle);
         progressPane      = new Pane(arc);
@@ -260,7 +264,7 @@ public class CircularProgressIndicator extends Region {
             arc.setCenterY(center);
             arc.setRadiusX(radius);
             arc.setRadiusY(radius);
-            arc.setStrokeWidth(size * 0.1);
+            arc.setStrokeWidth(size * 0.10526316);
 
             double factor = size / 24;
             circle.setScaleX(factor);
