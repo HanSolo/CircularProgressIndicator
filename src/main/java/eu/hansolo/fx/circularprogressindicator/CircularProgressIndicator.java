@@ -145,15 +145,17 @@ public class CircularProgressIndicator extends Region {
         circle.setStrokeDashOffset(dashOffset.get());
         circle.getStrokeDashArray().setAll(dashArray_0.getValue(), 200d);
 
-        arc = new Arc(center, center, radius, radius, 90, 360);
+        arc = new Arc(center, center, radius, radius, 90, -360.0 * getProgress());
         arc.setStrokeLineCap(isRoundLineCap() ? StrokeLineCap.ROUND : StrokeLineCap.SQUARE);
         arc.setStrokeWidth(PREFERRED_WIDTH * 0.1);
         arc.getStyleClass().add("indicator");
 
-        System.out.println(isRoundLineCap());
-
         indeterminatePane = new StackPane(circle);
+        indeterminatePane.setVisible(false);
+
         progressPane      = new Pane(arc);
+        progressPane.setVisible(Double.compare(getProgress(), 0.0) != 0);
+
         getChildren().setAll(progressPane, indeterminatePane);
 
         // Setup timeline animation
@@ -273,6 +275,8 @@ public class CircularProgressIndicator extends Region {
     }
 
     private void redraw() {
-        arc.setLength(-360.0 * getProgress());
+        double progress = getProgress();
+        progressPane.setVisible(Double.compare(progress, 0) > 0);
+        arc.setLength(-360.0 * progress);
     }
 }
